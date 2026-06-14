@@ -5,7 +5,7 @@ same numbers as the Claude app / `/usage`. Frameless, drag to move.
 
 ## Screenshots
 
-![Claude Quota Widget showing 5-hour and weekly usage](images/screenshot-widget.jpeg)
+![Claude Quota Widget showing 5-hour and weekly usage](images/screenshot-widget-v2.jpeg)
 
 The full widget — 5-hour session and weekly usage with color bars, daily
 milestones, pace markers, and reset countdowns.
