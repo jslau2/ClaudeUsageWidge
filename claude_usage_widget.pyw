@@ -56,17 +56,6 @@ WINDOW_LABELS = [
     ("seven_day_cowork",   "Weekly · cowork"),
 ]
 
-# Compact tags used by the minimized mini-bar (kept short to fit beside the tray).
-SHORT_TAGS = {
-    "five_hour": "5h",
-    "seven_day": "wk",
-    "seven_day_opus": "Opus",
-    "seven_day_sonnet": "Sonnet",
-    "seven_day_oauth_apps": "apps",
-    "seven_day_cowork": "cowork",
-    "extra": "extra",
-}
-
 # Colors
 BG = "#1e1e2e"
 PANEL = "#181825"
@@ -196,7 +185,7 @@ def fmt_reset(iso):
 
 
 def fmt_reset_short(iso):
-    """Terse time-to-reset for the mini-bar: '2d' / '3h' / '45m' / 'now'."""
+    """Terse single-unit time-to-reset: '4d' / '3h' / '45m' / 'now'."""
     if not iso:
         return ""
     try:
@@ -212,6 +201,26 @@ def fmt_reset_short(iso):
     if h:
         return f"{h}h"
     return f"{rem // 60}m"
+
+
+def fmt_reset_hm(iso):
+    """Reset time with hour+minute granularity: '2h 13m' / '45m' / '1d 3h'."""
+    if not iso:
+        return ""
+    try:
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    secs = int((t - datetime.now(timezone.utc)).total_seconds())
+    if secs <= 0:
+        return "now"
+    h, rem = divmod(secs, 3600)
+    m = rem // 60
+    if h >= 24:
+        return f"{h // 24}d {h % 24}h"
+    if h:
+        return f"{h}h {m}m"
+    return f"{m}m"
 
 
 # --- GUI ---------------------------------------------------------------------
@@ -291,19 +300,38 @@ class Widget:
         self.mini_title = tk.Label(mini_inner, text="Claude", font=self.f_bold,
                                    bg=PANEL, fg=ACCENT)
         self.mini_title.pack(side="left", padx=(8, 4), pady=4)
+        # 5-hour session: the headline — big, bold, colored % + its reset time.
         self.mini_pct = tk.Label(mini_inner, text="—", font=self.f_pct,
                                  bg=PANEL, fg=DIM)
         self.mini_pct.pack(side="left", padx=(0, 4), pady=4)
         self.mini_sub = tk.Label(mini_inner, text="", font=self.f_small,
                                  bg=PANEL, fg=DIM)
         self.mini_sub.pack(side="left", padx=(0, 8), pady=4)
+        # Weekly: de-emphasized — small, dim, no color.
+        self.mini_week = tk.Label(mini_inner, text="", font=self.f_small,
+                                  bg=PANEL, fg=DIM)
+        self.mini_week.pack(side="left", padx=(0, 8), pady=4)
         for w in (self.mini, mini_inner, self.mini_title, self.mini_pct,
-                  self.mini_sub):
+                  self.mini_sub, self.mini_week):
             w.bind("<Button-1>", self._mini_press)
             w.bind("<B1-Motion>", self._mini_drag)
             w.bind("<ButtonRelease-1>", self._mini_release)
 
         self.refresh()
+        self._stay_on_top()
+
+    # --- keep above the (topmost) Windows taskbar ---
+    def _stay_on_top(self):
+        # The taskbar is itself a topmost window; clicking it re-raises it above
+        # us. Re-asserting -topmost periodically climbs us back to the front of
+        # the topmost band. This doesn't steal keyboard focus.
+        if self.topmost:
+            try:
+                self.root.attributes("-topmost", True)
+                self.root.lift()
+            except tk.TclError:
+                pass
+        self.root.after(REFRESH_SECONDS * 1000, self._stay_on_top)
 
     # --- window move (frameless) ---
     def _drag_start(self, e):
@@ -360,36 +388,27 @@ class Widget:
         self.tray.run_detached()
 
     # --- mini-bar (collapsed, lives beside the tray) ---
-    def _headline(self, data):
-        """Most-constrained active window as (pct, resets_at, key), or None."""
-        if not isinstance(data, dict):
-            return None
-        best = None
-        for key, _ in WINDOW_LABELS:
-            win = data.get(key)
-            if isinstance(win, dict) and win.get("utilization") is not None:
-                pct = float(win["utilization"])
-                if best is None or pct > best[0]:
-                    best = (pct, win.get("resets_at"), key)
-        extra = data.get("extra_usage")
-        if (isinstance(extra, dict) and extra.get("is_enabled")
-                and extra.get("utilization") is not None):
-            pct = float(extra["utilization"])
-            if best is None or pct > best[0]:
-                best = (pct, extra.get("resets_at"), "extra")
-        return best
-
     def _update_mini(self, data):
-        hl = self._headline(data)
-        if hl is None:
+        # 5-hour session is the headline: bold colored % + "resets in xx hr/min".
+        five = data.get("five_hour") if isinstance(data, dict) else None
+        if isinstance(five, dict) and five.get("utilization") is not None:
+            pct = float(five["utilization"])
+            self.mini_pct.config(text=f"{pct:.0f}%", fg=color_for(pct))
+            rel = fmt_reset_hm(five.get("resets_at"))
+            self.mini_sub.config(text=rel)
+        else:
             self.mini_pct.config(text="—", fg=DIM)
             self.mini_sub.config(text="")
-            return
-        pct, reset_iso, key = hl
-        self.mini_pct.config(text=f"{pct:.0f}%", fg=color_for(pct))
-        tag = SHORT_TAGS.get(key, key)
-        rel = fmt_reset_short(reset_iso)
-        self.mini_sub.config(text=f"{tag} · {rel}" if rel else tag)
+
+        # Weekly: small, dim, no color — just a quiet reference figure.
+        week = data.get("seven_day") if isinstance(data, dict) else None
+        if isinstance(week, dict) and week.get("utilization") is not None:
+            wpct = float(week["utilization"])
+            wrel = fmt_reset_short(week.get("resets_at"))
+            self.mini_week.config(text=f"{wpct:.0f}%  {wrel}" if wrel
+                                  else f"{wpct:.0f}%")
+        else:
+            self.mini_week.config(text="")
 
     def to_mini(self):
         if self.minimized:
