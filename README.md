@@ -10,7 +10,7 @@ same numbers as the Claude app / `/usage`. Frameless, drag to move.
 The full widget — 5-hour session and weekly usage with color bars, daily
 milestones, pace markers, and reset countdowns.
 
-![Collapsed mini-bar docked beside the tray](images/screenshot-minibar.jpeg)
+![Collapsed mini-bar docked beside the tray](images/screenshot-minibar-v2.jpeg)
 
 Collapsed to the mini-bar — a tiny always-on-top strip docked beside the tray.
 
