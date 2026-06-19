@@ -37,12 +37,14 @@ set "TARGET=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\ClaudeUsageW
 >> "%TARGET%" echo start "Claude" cmd /k "cd /d %CLAUDE_DIR% && claude"
 >> "%TARGET%" echo timeout /t 5 /nobreak ^>nul
 >> "%TARGET%" echo start "" pythonw "%WIDGET%"
+>> "%TARGET%" echo start "" taskmgr
 
 echo Auto-start installed:
 echo   %TARGET%
 echo   -^> claude in "%CLAUDE_DIR%"
 echo   -^> wait 3s (let Claude refresh the token)
 echo   -^> pythonw "%WIDGET%"
+echo   -^> Task Manager
 echo.
 echo To disable later, delete:
 echo   %TARGET%
